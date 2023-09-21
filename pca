@@ -1,0 +1,27 @@
+# Load the necessary library
+library(stats)
+
+# Load your dataset (train.csv)
+data <- read.csv("train.csv")
+
+# Extract column names
+column_names <- colnames(data)
+
+# Standardize the data
+scaled_data <- scale(data)
+
+# Perform PCA
+pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
+# Get the explained variance
+explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+
+# Print the explained variance for each principal component along with column names
+cat("Explained Variance for Principal Components:\n")
+for (i in 1:length(explained_variance)) {
+  cat("PC", i, " (", column_names[i], "): ", explained_variance[i], "\n")
+}
+
+# You can also plot the cumulative explained variance
+cumulative_variance <- cumsum(explained_variance)
+plot(cumulative_variance, type = "b", xlab = "Number of Principal Components", ylab = "Cumulative Explained Variance", main = "Cumulative Explained Variance Plot")
