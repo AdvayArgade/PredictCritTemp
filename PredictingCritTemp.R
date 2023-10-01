@@ -49,16 +49,25 @@ df = cbind(as.data.frame(lapply(df, normalize)))
 
 
 #lasso----
-# your_data <- read.csv('train.csv')
-# X <- your_data[, 1:80]  
-# y <- your_data$critical_temp 
-# library(glmnet)
-# lasso_model <- glmnet(X, y, alpha = 1) 
-# optimal_lambda <- lasso_model$lambda.min
-# lasso_model_optimal <- glmnet(X, y, alpha = 1, lambda = optimal_lambda)
-# lasso_coefficients <- coef(lasso_model_optimal)
-# selected_features <- which(lasso_coefficients != 0)
-# print(selected_features)
+# tryCatch({
+#   f <- read.csv('train.csv')
+# }, error = function(e) {
+#   stop("Error reading data file: ", e$message)
+# })
+# att <- as.matrix(f[, 1:80])
+# class_labels <- f$critical_temp
+# #find the best lambda
+# cv_model <- cv.glmnet(att, class_labels, alpha = 1)
+# best_lambda <- cv_model$lambda.min
+# best_model <- glmnet(att, class_labels, alpha = 1, lambda = best_lambda)
+# # Extract coefficients 
+# coefficients <- coef(best_model)
+# abs_coefficients <- abs(coefficients)
+# important_features <- which(abs_coefficients > 0)
+# sorted_important_features <- important_features[order(-abs_coefficients[important_features])]
+# cat("Important Features (Decreasing Order of Absolute Coefficient Magnitude):\n")
+# cat(rownames(coefficients)[sorted_important_features], sep = "\n")
+
 #CFS----
 #failed
 # library(caret)
