@@ -89,7 +89,6 @@ df = cbind(as.data.frame(lapply(df, normalize)))
 # abs_coef<-abs(coefficient)
 # ordered_coef<-abs_coef[order(-abs_coef[,]),]
 # print(ordered_coef)
-
 # #var imp---gives top 20 features----
 # varImp(model1)
 
@@ -289,6 +288,55 @@ print(RMSE(y_pred = y_pred, y_true = y_test))
 # print(mean(rmse))
 # print(mean(r2))
 # print(mean(mae))
+
+
+# Gradient Boost----
+# library(gbm)
+# library(caTools)
+# library(caret)
+# start_time <- Sys.time()
+# df <- read.csv("train.csv")
+
+# # Preprocessing
+# normalize <- function(x) {
+#   if (is.vector(x)) {
+#     min_val <- min(x)
+#     max_val <- max(x)
+#   } else {
+#     min_val <- max_val <- x
+#   } 
+#   if (min_val == max_val) {
+#     return(rep(0, length(x)))  # Handle case where min = max
+#   } 
+#   return((x - min_val) / (max_val - min_val))
+# }
+# df_scaled <- as.data.frame(lapply(df, normalize))
+
+# # Train-test split
+# set.seed(123)
+# split <- sample.split(df_scaled$critical_temp, SplitRatio = 0.7)
+# train <- subset(df_scaled, split == TRUE)
+# test <- subset(df_scaled, split == FALSE)
+
+# gbm_model <- gbm(critical_temp ~ ., data = train, distribution = "gaussian", n.trees = 100, interaction.depth = 2, shrinkage = 0.1)
+
+# predictions <- predict(gbm_model, newdata = test, n.trees = 100, type = "response")
+# current_time <- Sys.time()
+
+# print((current_time) - (start_time))
+# mse <- mean((predictions - test$critical_temp)^2)  # Corrected
+# rmse <- sqrt(mse)
+# mae <- mean(abs(predictions - test$critical_temp))
+# #print(paste("Mean Squared Error:", mse))
+# actual_values <- test$critical_temp
+# ss_total <- sum((actual_values - mean(actual_values))^2)
+# ss_residual <- sum((actual_values - predictions)^2)
+# rsquared <- 1 - (ss_residual / ss_total)
+# print(paste("R2:", rsquared))
+# print(paste("RMSE:", rmse))
+# print(paste("MAE:", mae))
+
+
 
 
 
