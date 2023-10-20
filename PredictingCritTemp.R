@@ -38,35 +38,61 @@ df = cbind(as.data.frame(lapply(df, normalize)))
 # df = cbind(df, critical_temp)
 
 #fischer score----
-# att<-df[,1:80]
-# class_labels<-df$critical_temp
-# data_df<-data.frame(att,Class=class_labels)
-# fs_score<-information.gain(Class~.,data=data_df)
-# print(fs_score)
-# top_attrs_fs = cut_attrs(fs_score, k=0.2)
-#sorted_fs_score <- fs_score[order(fs_score)]
-#print(sorted_fs_score)
+# library(MASS)
+# data <- read.csv('train.csv')
+# X <- data[, 1:80]  
+# y <- data$critical_temp
+# # Perform Fisher Score calculation using LDA
+# lda_result <- lda(X, y)
+# fisher_scores <- numeric(ncol(X))
+# for (i in seq_along(fisher_scores)) {
+#   between_class_var <- sum((lda_result$means[, i] - mean(lda_result$means))^2)
+#   within_class_var <- sum(lda_result$scaling^2 * table(y)[i])
+#   fisher_scores[i] <- between_class_var / within_class_var
+# }
+# feature_scores <- data.frame(Feature = colnames(X), Fisher_Score = fisher_scores)
+# # Sort the features by Fisher Score in descending order
+# sorted_features <- feature_scores[order(-feature_scores$Fisher_Score), ]
+# # Select the top-k features (e.g., top 10)
+# k <- 10
+# selected_features <- sorted_features$Feature[1:k]
+# # Print the selected features and their Fisher Scores
+# print(sorted_features)
+# cat("\nSelected Features:\n", selected_features, sep = "\n")
 
 
-#lasso----
-# tryCatch({
-#   f <- read.csv('train.csv')
-# }, error = function(e) {
-#   stop("Error reading data file: ", e$message)
-# })
-# att <- as.matrix(f[, 1:80])
-# class_labels <- f$critical_temp
-# #find the best lambda
-# cv_model <- cv.glmnet(att, class_labels, alpha = 1)
-# best_lambda <- cv_model$lambda.min
-# best_model <- glmnet(att, class_labels, alpha = 1, lambda = best_lambda)
-# # Extract coefficients 
-# coefficients <- coef(best_model)
-# abs_coefficients <- abs(coefficients)
-# important_features <- which(abs_coefficients > 0)
-# sorted_important_features <- important_features[order(-abs_coefficients[important_features])]
-# cat("Important Features (Decreasing Order of Absolute Coefficient Magnitude):\n")
-# cat(rownames(coefficients)[sorted_important_features], sep = "\n")
+
+#lASSO----
+# library(readr)
+# df<-read.csv('train.csv')
+# #str(df)
+# library(caret)
+# set.seed(123)
+# index<-createDataPartition(df$critical_temp,p=.8,list=FALSE,times=1)
+# df<-as.data.frame(df)
+# train_df<-df[index,]
+# test_df<-df[-index,]
+# #cross validation
+# ctrlspecs<-trainControl(method ="cv",number=10,savePredictions = "all")
+# lambda_vector<- 10^seq(5,-5,length=500)
+# model1<-train(critical_temp~.,
+#               data = train_df,
+#               preProcess=c("center","scale"),
+#               method="glmnet",
+#               tuneGrid=expand.grid(alpha=1, lambda=lambda_vector),
+#               na.action = na.omit)
+# model1$bestTune
+# model1$bestTune$lambda
+# #lasso reg ceof
+# coefficient<-round(coef(model1$finalModel, model1$bestTune$lambda),3)
+# #print(coefficient)
+# abs_coef<-abs(coefficient)
+# ordered_coef<-abs_coef[order(-abs_coef[,]),]
+# print(ordered_coef)
+
+# #var imp---gives top 20 features----
+# varImp(model1)
+
 
 #CFS----
 #failed
