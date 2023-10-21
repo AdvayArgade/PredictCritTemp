@@ -11,6 +11,9 @@ library(car)
 library(MASS)
 library(brms)
 library(FSelector)
+library(randomForest)
+library(earth)
+library(e1071)
 #Min max scaling----
 normalize<-function(x){
   if (is.vector(x)) {
@@ -128,6 +131,52 @@ y_test = subset(test, select = critical_temp)
 y_test <- test$critical_temp
 
 
+
+# Correlation Matrix Implementation----
+
+# Compute the correlation matrix
+correlation_matrix <- cor(df)
+
+# Find pairs of columns with a correlation greater than 0.6
+highly_correlated_pairs <- which(correlation_matrix > 0.6 & correlation_matrix < 1, arr.ind = TRUE)
+
+# Identify and exclude one column from each highly correlated pair
+columns_to_exclude <- character(0)
+
+for (i in 1:nrow(highly_correlated_pairs)) {
+  row <- highly_correlated_pairs[i, 1]
+  col <- highly_correlated_pairs[i, 2]
+
+  col1 <- names(df)[col]
+
+  # Check if the column is not already excluded
+  if (!(col1 %in% columns_to_exclude)) {
+    # Calculate the mean correlation of the current column with all other columns
+    mean_corr <- mean(correlation_matrix[, col])
+
+    # Calculate the mean correlation of the other column in the pair
+    mean_corr_other <- mean(correlation_matrix[, row])
+
+    # Exclude the column with the higher mean correlation
+    if (mean_corr > mean_corr_other) {
+      columns_to_exclude <- c(columns_to_exclude, col1)
+    } else {
+      columns_to_exclude <- c(columns_to_exclude, names(df)[row])
+    }
+  }
+}
+
+# Create a new data frame with the excluded columns
+df_filtered <- df[, !names(df) %in% columns_to_exclude]
+print(df_filtered)
+print(ncol(df_filtered))
+print(nrow(df_filtered))
+print(colnames(df_filtered))
+data = df_filtered
+data = normalize(data)
+# Split the data into features (X) and target variable (y)
+X <- data[, -ncol(data)]  # All columns except the last one
+y <- data[, ncol(data)]   # Last column
 
 # Regression----
 # All features
@@ -263,9 +312,83 @@ print(paste("R2:", rsquared))
 print(paste("RMSE:", rmse))
 print(paste("MAE:", mae))
 
+#Random Forest Whole dataset----
+
+# Set the seed for reproducibility
+set.seed(42)
+                           
+# Build the random forest model
+T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+cat("\n\nTraining Time:", T1)
+
+# Print the model summary
+print(RFM)
+
+# Model Accuracy
+T2 <- system.time({Temp_pred <- predict(RFM, test)})
+result <- data.frame(test$critical_temp, Temp_pred)
+cat("\n\nPrediction Time:", T2)
+print(result)
+plot(result)
+
+# R-square
+r_squared <- R2(Temp_pred, test$critical_temp)
+cat("\nR2:", r_squared)
+
+# RMSE
+rmse <- rmse(Temp_pred, test$critical_temp)
+cat("\nRMSE:", rmse)
+
+# MAE
+mae <- mae(Temp_pred, test$critical_temp)
+cat("\nMAE:", mae)
+
+#MARS whole dataset----
+
+# Build a MARS model using the training data
+T1 <- system.time({
+  mars_model <- earth(critical_temp ~ ., data = train_data)
+})
+cat("Training Time:", T1)
+
+# Summary of the MARS model
+print(mars_model)
+
+# Make predictions on the testing set
+T2 <- system.time({
+  predictions <- predict(mars_model, newdata = test_data)
+})
+print(predictions)
+cat("Prediction Time:", T2)
+
+# Calculate performance metrics (e.g., RMSE) for the predictions
+RMSE <- rmse(predictions, test_data$critical_temp)
+cat("\nRoot Mean Squared Error (RMSE):", RMSE)
+
+MAE <- mae(predictions, test_data$critical_temp)
+cat("\nMAE:", MAE)
+
+r_square <- R2(predictions, test_data$critical_temp)
+cat("\nR2:", r_square)
 
 
+# SVR----
+# Training SVR model
+start_time <- Sys.time()
 
+svr_model <- svm(y_train ~ ., data = data.frame(cbind(y_train, X_train)), kernel = "radial", cost = 1)
+
+end_time <- Sys.time()
+# Predict on the test set
+y_pred <- predict(svr_model, newdata = data.frame(X_test))
+
+
+# Print the results
+cat("R-squared (R2): ", r2, "\n")
+cat("Root Mean Squared Error (RMSE): ", rmse, "\n")
+cat("Mean Absolute Error (MAE): ", mae, "\n")
+elapsed_time <- end_time - start_time
+cat("\nTime taken: ", elapsed_time, " seconds\n")
 
 
 
@@ -330,6 +453,134 @@ print(MAE(y_pred = y_pred, y_true = y_test))
 print(R2(pred = y_pred, obs = y_test))
 print(RMSE(y_pred = y_pred, y_true = y_test))
 
+#Random Forest on Features----
+
+# Load your feature selection results
+results <- readRDS('rfeResult.rds')
+top_attrs <- readRDS('InfoGainResult.rds')
+
+# Extract common features
+common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
+
+# Filter the dataset to include only common features
+data_filtered <- A[, c("critical_temp", common_features)]
+
+# Set the seed for reproducibility
+set.seed(42)
+
+# Create an index for sampling
+index <- sample(2, nrow(data_filtered), replace = TRUE, prob = c(0.7, 0.3))
+
+# Create training and test sets
+train <- data_filtered[index == 1, ]
+test <- data_filtered[index == 2, ]
+
+# Build the random forest model
+T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+cat("\n\nTraining Time:", T1)
+
+# Print the model summary
+print(RFM)
+
+# Model Accuracy
+T2 <- system.time({Temp_pred <- predict(RFM, test)})
+result <- data.frame(test$critical_temp, Temp_pred)
+cat("\n\nPrediction Time:", T2)
+print(result)
+plot(result)
+
+# R-square
+r_squared <- R2(Temp_pred, test$critical_temp)
+cat("\nR2:", r_squared)
+
+# RMSE
+rmse <- rmse(Temp_pred, test$critical_temp)
+cat("\nRMSE:", rmse)
+
+# MAE
+mae <- mae(Temp_pred, test$critical_temp)
+cat("\nMAE:", mae)
+
+
+#MARS on Features selected----
+
+set.seed(42)
+sample_index <- sample(1:nrow(data_filtered), 0.8 * nrow(data_filtered))
+train_data <- data_filtered[sample_index, ]
+test_data <- data_filtered[-sample_index, ]
+
+# Build a MARS model using the training data
+T1 <- system.time({
+  mars_model <- earth(critical_temp ~ ., data = train_data)
+})
+cat("Training Time:", T1)
+
+# Summary of the MARS model
+print(mars_model)
+
+# Make predictions on the testing set
+T2 <- system.time({
+  predictions <- predict(mars_model, newdata = test_data)
+})
+cat("Prediction Time:", T2)
+
+# Calculate performance metrics (e.g., RMSE) for the predictions
+RMSE <- rmse(predictions, test_data$critical_temp)
+cat("\nRoot Mean Squared Error (RMSE):", RMSE)
+
+MAE <- mae(predictions, test_data$critical_temp)
+cat("\nMAE:", MAE)
+
+r_square <- R2(predictions, test_data$critical_temp)
+cat("\nR2:", r_square)
+
+
+
+# Support Vector Regression Top 10 RFE and InfoGain----
+
+common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
+common_features = common_features[1:20]
+
+data_filtered <- data[, c("critical_temp", common_features)]
+
+X <- data_filtered[, -ncol(data_filtered)]  # All columns except the last one
+y <- data_filtered[, ncol(data_filtered)]   # Last column
+
+set.seed(42)  # For same random values
+train_idx <- sample(nrow(data_filtered), nrow(data_filtered) * 0.7)
+X_train <- X[train_idx, ]
+y_train <- y[train_idx]
+X_test <- X[-train_idx, ]
+y_test <- y[-train_idx]
+
+# Start measuring time
+start_time <- Sys.time()
+
+# Training SVR model
+svr_model <- svm(y_train ~ ., data = data.frame(cbind(y_train, X_train)), kernel = "radial", cost = 1)
+
+# Stop measuring time
+end_time <- Sys.time()
+
+# Predict on the test set
+y_pred <- predict(svr_model, newdata = data.frame(X_test))
+
+# Calculate R-squared (R2) using Metrics package
+r_square <- R2(y_pred, y_test)
+cat("\nR2:", r_square)
+
+# Calculate Root Mean Squared Error (RMSE) using Metrics package
+RMSE <- RMSE(y_pred, y_test)
+cat("\nRoot Mean Squared Error (RMSE):", RMSE)
+
+# Calculate Mean Absolute Error (MAE) using Metrics package
+MAE <- MAE(y_pred, y_test)
+cat("\nMAE:", MAE)
+
+# Calculate and print the time taken
+elapsed_time <- end_time - start_time
+cat("\nTime taken: ", elapsed_time, " seconds\n")
+
 
 
 
@@ -386,422 +637,4 @@ cumulative_variance <- cumsum(explained_variance)
 desired_variance <- 0.9
 selected_pc <- which(cumulative_variance >= desired_variance)[1
 cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc, "\n")
-
-
-#Random Forest Whole dataset----
-
-library(randomForest)
-library(Metrics)
-library(caret)
-
-# Load your data
-A <- read.csv("train.csv")
-A$critical_temp <- as.factor(A$critical_temp)
-
-# Set the seed for reproducibility
-set.seed(123)
-
-# Create an index for sampling
-index <- sample(2, nrow(A), replace = TRUE, prob = c(0.7, 0.3))
-
-# Create training and test sets
-train <- A[index == 1, ]
-test <- A[index == 2, ]
-
-# Convert "critical_temp" to numeric
-train$critical_temp <- as.numeric(train$critical_temp)
-test$critical_temp <- as.numeric(test$critical_temp)
-
-# Function to normalize numeric variables
-normalize_data <- function(data) {
-  numeric_cols <- sapply(data, is.numeric)
-  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
-  return(data)
-}
-
-# Normalize the training and test datasets
-train <- normalize_data(train)
-test <- normalize_data(test)
-
-# Build the random forest model
-T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
-cat("\n\nTraining Time:", T1)
-
-# Print the model summary
-print(RFM)
-
-# Model Accuracy
-T2 <- system.time({Temp_pred <- predict(RFM, test)})
-result <- data.frame(test$critical_temp, Temp_pred)
-cat("\n\nPrediction Time:", T2)
-print(result)
-plot(result)
-
-# R-square
-r_squared <- R2(Temp_pred, test$critical_temp)
-cat("\nR2:", r_squared)
-
-# RMSE
-rmse <- rmse(Temp_pred, test$critical_temp)
-cat("\nRMSE:", rmse)
-
-# MAE
-mae <- mae(Temp_pred, test$critical_temp)
-cat("\nMAE:", mae)
-
-
-
-#Random Forest on Features----
-library(randomForest)
-library(Metrics)
-library(caret)
-
-
-A <- read.csv("train.csv")
-A$critical_temp <- as.factor(A$critical_temp)
-
-# Load your feature selection results
-results <- readRDS('rfeResult.rds')
-top_attrs <- readRDS('InfoGainResult.rds')
-
-# Extract common features
-common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
-
-# Filter the dataset to include only common features
-data_filtered <- A[, c("critical_temp", common_features)]
-
-# Set the seed for reproducibility
-set.seed(123)
-
-# Create an index for sampling
-index <- sample(2, nrow(data_filtered), replace = TRUE, prob = c(0.7, 0.3))
-
-# Create training and test sets
-train <- data_filtered[index == 1, ]
-test <- data_filtered[index == 2, ]
-
-# Convert "critical_temp" to numeric
-train$critical_temp <- as.numeric(train$critical_temp)
-test$critical_temp <- as.numeric(test$critical_temp)
-
-# Function to normalize numeric variables
-normalize_data <- function(data) {
-  numeric_cols <- sapply(data, is.numeric)
-  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
-  return(data)
-}
-
-# Normalize the training and test datasets
-train <- normalize_data(train)
-test <- normalize_data(test)
-
-# Build the random forest model
-T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
-cat("\n\nTraining Time:", T1)
-
-# Print the model summary
-print(RFM)
-
-# Model Accuracy
-T2 <- system.time({Temp_pred <- predict(RFM, test)})
-result <- data.frame(test$critical_temp, Temp_pred)
-cat("\n\nPrediction Time:", T2)
-print(result)
-plot(result)
-
-# R-square
-r_squared <- R2(Temp_pred, test$critical_temp)
-cat("\nR2:", r_squared)
-
-# RMSE
-rmse <- rmse(Temp_pred, test$critical_temp)
-cat("\nRMSE:", rmse)
-
-# MAE
-mae <- mae(Temp_pred, test$critical_temp)
-cat("\nMAE:", mae)
-
-#MARS whole dataset----
-# Load the earth package
-library(earth)
-library(caret)
-library(Metrics)
-
-# Load your dataset
-data <- read.csv("train.csv")
-
-# Function to normalize numeric variables
-n2 <- function(b) {
-  (b - min(b)) / (max(b) - min(b))
-}
-
-# Apply the normalization function to numeric columns
-numeric_cols <- sapply(data, is.numeric)
-data[, numeric_cols] <- lapply(data[, numeric_cols], n2)
-
-# Split the dataset into a training set (70%) and a testing set (30%)
-set.seed(42)
-sample_index <- sample(1:nrow(data), 0.7 * nrow(data))
-train_data <- data[sample_index, ]
-test_data <- data[-sample_index, ]
-
-# Build a MARS model using the training data
-T1 <- system.time({
-  mars_model <- earth(critical_temp ~ ., data = train_data)
-})
-cat("Training Time:", T1)
-
-# Summary of the MARS model
-print(mars_model)
-
-# Make predictions on the testing set
-T2 <- system.time({
-  predictions <- predict(mars_model, newdata = test_data)
-})
-print(predictions)
-cat("Prediction Time:", T2)
-
-# Calculate performance metrics (e.g., RMSE) for the predictions
-RMSE <- rmse(predictions, test_data$critical_temp)
-cat("\nRoot Mean Squared Error (RMSE):", RMSE)
-
-MAE <- mae(predictions, test_data$critical_temp)
-cat("\nMAE:", MAE)
-
-r_square <- R2(predictions, test_data$critical_temp)
-cat("\nR2:", r_square)
-
-
-
-#MARS on Features selected----
-
-                                 
-# Load the earth package
-library(earth)
-library(caret)
-library(Metrics)
-
-# Load your dataset
-data <- read.csv("train.csv")
-
-# Load your feature selection results
-results <- readRDS('rfeResult.rds')
-top_attrs <- readRDS('InfoGainResult.rds')
-
-# Extract common features
-common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
-
-# Filter the dataset to include only common features
-data_filtered <- data[, c("critical_temp", common_features)]
-
-# Function to normalize numeric variables
-n2 <- function(b) {
-  (b - min(b)) / (max(b) - min(b))
-}
-
-# Apply the normalization function to numeric columns
-numeric_cols <- sapply(data_filtered, is.numeric)
-data_filtered[, numeric_cols] <- lapply(data_filtered[, numeric_cols], n2)
-
-# Split the filtered dataset into a training set (70%) and a testing set (30%)
-set.seed(42)
-sample_index <- sample(1:nrow(data_filtered), 0.7 * nrow(data_filtered))
-train_data <- data_filtered[sample_index, ]
-test_data <- data_filtered[-sample_index, ]
-
-# Build a MARS model using the training data
-T1 <- system.time({
-  mars_model <- earth(critical_temp ~ ., data = train_data)
-})
-cat("Training Time:", T1)
-
-# Summary of the MARS model
-print(mars_model)
-
-# Make predictions on the testing set
-T2 <- system.time({
-  predictions <- predict(mars_model, newdata = test_data)
-})
-cat("Prediction Time:", T2)
-
-# Calculate performance metrics (e.g., RMSE) for the predictions
-RMSE <- rmse(predictions, test_data$critical_temp)
-cat("\nRoot Mean Squared Error (RMSE):", RMSE)
-
-MAE <- mae(predictions, test_data$critical_temp)
-cat("\nMAE:", MAE)
-
-r_square <- R2(predictions, test_data$critical_temp)
-cat("\nR2:", r_square)
-                                 
-
-# Support Vector Regression
-
-library(e1071)
-
-# Load the Superconductivity Data
-data <- read.csv("train.csv")
-normalize_data <- function(data) {
-  numeric_cols <- sapply(data, is.numeric)
-  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
-  return(data)
-}
-data = normalize_data(data)
-
-# Split the data into features (X) and target variable (y)
-X <- data[, -ncol(data)]  # All columns except the last one
-y <- data[, ncol(data)]   # Last column
-
-# Normalize the features
-# X <- scale(X)
-
-# Splitting the data into training and testing sets (70% training, 30% testing)
-set.seed(123)  # For same random values
-train_idx <- sample(nrow(data), nrow(data) * 0.7)
-X_train <- X[train_idx, ]
-y_train <- y[train_idx]
-X_test <- X[-train_idx, ]
-y_test <- y[-train_idx]
-
-# Training SVR model
-start_time <- Sys.time()
-
-svr_model <- svm(y_train ~ ., data = data.frame(cbind(y_train, X_train)), kernel = "radial", cost = 1)
-
-end_time <- Sys.time()
-# Predict on the test set
-y_pred <- predict(svr_model, newdata = data.frame(X_test))
-
-# RMSE (Root Mean Squared Error)
-rmse <- sqrt(mean((y_pred - y_test)^2))
-cat("Root Mean Squared Error:", rmse)
-cat("\n")
-# Calculate R-squared (R2)
-r2 <- 1 - sum((y_test - y_pred)^2) / sum((y_test - mean(y_test))^2)
-
-# Calculate Root Mean Squared Error (RMSE)
-rmse <- sqrt(mean((y_test - y_pred)^2))
-
-# Calculate Mean Absolute Error (MAE)
-mae <- mean(abs(y_test - y_pred))
-
-# Print the results
-cat("R-squared (R2): ", r2, "\n")
-cat("Root Mean Squared Error (RMSE): ", rmse, "\n")
-cat("Mean Absolute Error (MAE): ", mae, "\n")
-elapsed_time <- end_time - start_time
-cat("\nTime taken: ", elapsed_time, " seconds\n")
-
-# Correlation Matrix Implementation
-df = read.csv("train.csv")
-# Compute the correlation matrix
-correlation_matrix <- cor(df)
-
-# Find pairs of columns with a correlation greater than 0.6
-highly_correlated_pairs <- which(correlation_matrix > 0.6 & correlation_matrix < 1, arr.ind = TRUE)
-
-# Identify and exclude one column from each highly correlated pair
-columns_to_exclude <- character(0)
-
-for (i in 1:nrow(highly_correlated_pairs)) {
-  row <- highly_correlated_pairs[i, 1]
-  col <- highly_correlated_pairs[i, 2]
-
-  col1 <- names(df)[col]
-
-  # Check if the column is not already excluded
-  if (!(col1 %in% columns_to_exclude)) {
-    # Calculate the mean correlation of the current column with all other columns
-    mean_corr <- mean(correlation_matrix[, col])
-
-    # Calculate the mean correlation of the other column in the pair
-    mean_corr_other <- mean(correlation_matrix[, row])
-
-    # Exclude the column with the higher mean correlation
-    if (mean_corr > mean_corr_other) {
-      columns_to_exclude <- c(columns_to_exclude, col1)
-    } else {
-      columns_to_exclude <- c(columns_to_exclude, names(df)[row])
-    }
-  }
-}
-normalize_data <- function(data) {
-  numeric_cols <- sapply(data, is.numeric)
-  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
-  return(data)
-}
-# Create a new data frame with the excluded columns
-df_filtered <- df[, !names(df) %in% columns_to_exclude]
-print(df_filtered)
-print(ncol(df_filtered))
-print(nrow(df_filtered))
-print(colnames(df_filtered))
-data = df_filtered
-data = normalize_data(data)
-# Split the data into features (X) and target variable (y)
-X <- data[, -ncol(data)]  # All columns except the last one
-y <- data[, ncol(data)]   # Last column
-
-# Support Vector Regression Top 10 RFE and InfoGain
-
-library(e1071)
-library(caret)
-library(Metrics)
-
-data <- read.csv("train.csv")
-normalize_data <- function(data) {
-  numeric_cols <- sapply(data, is.numeric)
-  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
-  return(data)
-}
-
-data = normalize_data(data)
-
-results <- readRDS('rfeResult.rds')
-top_attrs <- readRDS('InfoGainResult.rds')
-
-common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
-common_features = common_features[1:10]
-
-data_filtered <- data[, c("critical_temp", common_features)]
-
-X <- data_filtered[, -ncol(data_filtered)]  # All columns except the last one
-y <- data_filtered[, ncol(data_filtered)]   # Last column
-
-set.seed(123)  # For same random values
-train_idx <- sample(nrow(data_filtered), nrow(data_filtered) * 0.7)
-X_train <- X[train_idx, ]
-y_train <- y[train_idx]
-X_test <- X[-train_idx, ]
-y_test <- y[-train_idx]
-
-# Start measuring time
-start_time <- Sys.time()
-
-# Training SVR model
-svr_model <- svm(y_train ~ ., data = data.frame(cbind(y_train, X_train)), kernel = "radial", cost = 1)
-
-# Stop measuring time
-end_time <- Sys.time()
-
-# Predict on the test set
-y_pred <- predict(svr_model, newdata = data.frame(X_test))
-
-# Calculate R-squared (R2) using Metrics package
-r_square <- R2(y_pred, y_test)
-cat("\nR2:", r_square)
-
-# Calculate Root Mean Squared Error (RMSE) using Metrics package
-RMSE <- RMSE(y_pred, y_test)
-cat("\nRoot Mean Squared Error (RMSE):", RMSE)
-
-# Calculate Mean Absolute Error (MAE) using Metrics package
-MAE <- MAE(y_pred, y_test)
-cat("\nMAE:", MAE)
-
-# Calculate and print the time taken
-elapsed_time <- end_time - start_time
-cat("\nTime taken: ", elapsed_time, " seconds\n")
-
-
 
