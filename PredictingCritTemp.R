@@ -355,7 +355,252 @@ selected_pc <- which(cumulative_variance >= desired_variance)[1
 cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc, "\n")
 
 
+#Random Forest Whole dataset----
 
+library(randomForest)
+library(Metrics)
+library(caret)
+
+# Load your data
+A <- read.csv("train.csv")
+A$critical_temp <- as.factor(A$critical_temp)
+
+# Set the seed for reproducibility
+set.seed(123)
+
+# Create an index for sampling
+index <- sample(2, nrow(A), replace = TRUE, prob = c(0.7, 0.3))
+
+# Create training and test sets
+train <- A[index == 1, ]
+test <- A[index == 2, ]
+
+# Convert "critical_temp" to numeric
+train$critical_temp <- as.numeric(train$critical_temp)
+test$critical_temp <- as.numeric(test$critical_temp)
+
+# Function to normalize numeric variables
+normalize_data <- function(data) {
+  numeric_cols <- sapply(data, is.numeric)
+  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
+  return(data)
+}
+
+# Normalize the training and test datasets
+train <- normalize_data(train)
+test <- normalize_data(test)
+
+# Build the random forest model
+T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+cat("\n\nTraining Time:", T1)
+
+# Print the model summary
+print(RFM)
+
+# Model Accuracy
+T2 <- system.time({Temp_pred <- predict(RFM, test)})
+result <- data.frame(test$critical_temp, Temp_pred)
+cat("\n\nPrediction Time:", T2)
+print(result)
+plot(result)
+
+# R-square
+r_squared <- R2(Temp_pred, test$critical_temp)
+cat("\nR2:", r_squared)
+
+# RMSE
+rmse <- rmse(Temp_pred, test$critical_temp)
+cat("\nRMSE:", rmse)
+
+# MAE
+mae <- mae(Temp_pred, test$critical_temp)
+cat("\nMAE:", mae)
+
+
+
+#Random Forest on Features----
+library(randomForest)
+library(Metrics)
+library(caret)
+
+
+A <- read.csv("train.csv")
+A$critical_temp <- as.factor(A$critical_temp)
+
+# Load your feature selection results
+results <- readRDS('rfeResult.rds')
+top_attrs <- readRDS('InfoGainResult.rds')
+
+# Extract common features
+common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
+
+# Filter the dataset to include only common features
+data_filtered <- A[, c("critical_temp", common_features)]
+
+# Set the seed for reproducibility
+set.seed(123)
+
+# Create an index for sampling
+index <- sample(2, nrow(data_filtered), replace = TRUE, prob = c(0.7, 0.3))
+
+# Create training and test sets
+train <- data_filtered[index == 1, ]
+test <- data_filtered[index == 2, ]
+
+# Convert "critical_temp" to numeric
+train$critical_temp <- as.numeric(train$critical_temp)
+test$critical_temp <- as.numeric(test$critical_temp)
+
+# Function to normalize numeric variables
+normalize_data <- function(data) {
+  numeric_cols <- sapply(data, is.numeric)
+  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) (x - min(x)) / (max(x) - min(x)))
+  return(data)
+}
+
+# Normalize the training and test datasets
+train <- normalize_data(train)
+test <- normalize_data(test)
+
+# Build the random forest model
+T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+cat("\n\nTraining Time:", T1)
+
+# Print the model summary
+print(RFM)
+
+# Model Accuracy
+T2 <- system.time({Temp_pred <- predict(RFM, test)})
+result <- data.frame(test$critical_temp, Temp_pred)
+cat("\n\nPrediction Time:", T2)
+print(result)
+plot(result)
+
+# R-square
+r_squared <- R2(Temp_pred, test$critical_temp)
+cat("\nR2:", r_squared)
+
+# RMSE
+rmse <- rmse(Temp_pred, test$critical_temp)
+cat("\nRMSE:", rmse)
+
+# MAE
+mae <- mae(Temp_pred, test$critical_temp)
+cat("\nMAE:", mae)
+
+#MARS whole dataset----
+# Load the earth package
+library(earth)
+library(caret)
+library(Metrics)
+
+# Load your dataset
+data <- read.csv("train.csv")
+
+# Function to normalize numeric variables
+n2 <- function(b) {
+  (b - min(b)) / (max(b) - min(b))
+}
+
+# Apply the normalization function to numeric columns
+numeric_cols <- sapply(data, is.numeric)
+data[, numeric_cols] <- lapply(data[, numeric_cols], n2)
+
+# Split the dataset into a training set (70%) and a testing set (30%)
+set.seed(42)
+sample_index <- sample(1:nrow(data), 0.7 * nrow(data))
+train_data <- data[sample_index, ]
+test_data <- data[-sample_index, ]
+
+# Build a MARS model using the training data
+T1 <- system.time({
+  mars_model <- earth(critical_temp ~ ., data = train_data)
+})
+cat("Training Time:", T1)
+
+# Summary of the MARS model
+print(mars_model)
+
+# Make predictions on the testing set
+T2 <- system.time({
+  predictions <- predict(mars_model, newdata = test_data)
+})
+print(predictions)
+cat("Prediction Time:", T2)
+
+# Calculate performance metrics (e.g., RMSE) for the predictions
+RMSE <- rmse(predictions, test_data$critical_temp)
+cat("\nRoot Mean Squared Error (RMSE):", RMSE)
+
+MAE <- mae(predictions, test_data$critical_temp)
+cat("\nMAE:", MAE)
+
+r_square <- R2(predictions, test_data$critical_temp)
+cat("\nR2:", r_square)
+
+
+
+#MARS on Features selected----
+
+                                 
+# Load the earth package
+library(earth)
+library(caret)
+library(Metrics)
+
+# Load your dataset
+data <- read.csv("train.csv")
+
+# Load your feature selection results
+results <- readRDS('rfeResult.rds')
+top_attrs <- readRDS('InfoGainResult.rds')
+
+# Extract common features
+common_features <- intersect(results$optVariables[1:50], top_attrs[1:50])
+
+# Filter the dataset to include only common features
+data_filtered <- data[, c("critical_temp", common_features)]
+
+# Function to normalize numeric variables
+n2 <- function(b) {
+  (b - min(b)) / (max(b) - min(b))
+}
+
+# Apply the normalization function to numeric columns
+numeric_cols <- sapply(data_filtered, is.numeric)
+data_filtered[, numeric_cols] <- lapply(data_filtered[, numeric_cols], n2)
+
+# Split the filtered dataset into a training set (70%) and a testing set (30%)
+set.seed(42)
+sample_index <- sample(1:nrow(data_filtered), 0.7 * nrow(data_filtered))
+train_data <- data_filtered[sample_index, ]
+test_data <- data_filtered[-sample_index, ]
+
+# Build a MARS model using the training data
+T1 <- system.time({
+  mars_model <- earth(critical_temp ~ ., data = train_data)
+})
+cat("Training Time:", T1)
+
+# Summary of the MARS model
+print(mars_model)
+
+# Make predictions on the testing set
+T2 <- system.time({
+  predictions <- predict(mars_model, newdata = test_data)
+})
+cat("Prediction Time:", T2)
+
+# Calculate performance metrics (e.g., RMSE) for the predictions
+RMSE <- rmse(predictions, test_data$critical_temp)
+cat("\nRoot Mean Squared Error (RMSE):", RMSE)
+
+MAE <- mae(predictions, test_data$critical_temp)
+cat("\nMAE:", MAE)
+
+r_square <- R2(predictions, test_data$critical_temp)
+cat("\nR2:", r_square)
+                                 
 
 
 
