@@ -336,6 +336,32 @@ print(RMSE(y_pred = y_pred, y_true = y_test))
 # print(paste("RMSE:", rmse))
 # print(paste("MAE:", mae))
 
+#PCA----
+library(stats)
+
+
+data <- read.csv("train.csv")
+
+
+column_names <- colnames(data)
+
+
+scaled_data <- scale(data)
+
+
+pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
+
+explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+
+cat("Explained Variance for Principal Components:\n")
+for (i in 1:length(explained_variance)) {
+  cat("PC", i, " (", column_names[i], "): ", explained_variance[i], "\n")
+}
+
+cumulative_variance <- cumsum(explained_variance)
+plot(cumulative_variance, type = "b", xlab = "Number of Principal Components", ylab = "Cumulative Explained Variance", main = "Cumulative Explained Variance Plot")
+
 
 
 
