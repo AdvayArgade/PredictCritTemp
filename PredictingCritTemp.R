@@ -92,20 +92,28 @@ df = cbind(as.data.frame(lapply(df, normalize)))
 # #var imp---gives top 20 features----
 # varImp(model1)
 
+# RFE
+# y_train = train$critical_temp
+# 
+# set.seed(42)
+# control = rfeControl(functions= rfFuncs, method="cv", number = 3)
+# results <- rfe(x_train, y_train,
+#                c(1:55), "Rsquared", maximize=TRUE, rfeControl = control)
+# # summarize the results
+# saveRDS(top_attrs, file = "rfeResult.rds")
+# print(results)
 
-#CFS----
-#failed
-# library(caret)
-# library(mlbench)
-# data <- read.csv('train.csv')
-# y<-data$critical_temp
-# x<-subset(data,select = -c(y))
-# cfs_feature<-findCorrelation(cor(x),cutoff = 0.5)
-# print(cfs_feature)
-
+# Information gain
+# critical_temp = df$critical_temp
+# gains = information_gain(x = subset(df, select = -critical_temp), y= df$critical_temp, type = 'infogain', equal = TRUE)
+# 
+# top_attrs = cut_attrs(attrs = gains, k = 0.99)
+# saveRDS(top_attrs, file = "InfoGainResult.rds")
 
 # Get the optimal feature subset
-top5attrs = intersect(results$optVariables[1:30], top_attrs[1:30])
+results = readRDS('rfeResult.rds')
+top_attrs = readRDS('InfoGainResult.rds')
+common_features = intersect(results$optVariables[1:50], top_attrs[1:50])
 
 # Train test split----
 # All features
@@ -119,30 +127,12 @@ y_train = as.matrix(subset(train, select = critical_temp))
 y_test = subset(test, select = critical_temp)
 y_test <- test$critical_temp
 
-# Top 5 features
 
-x_train_top = x_train[, top5attrs]
-x_test_top = x_test[, top5attrs]
-
-# RFE
-# y_train = train$critical_temp
-# 
-# set.seed(42)
-# control = rfeControl(functions= rfFuncs, method="cv", number = 3)
-# results <- rfe(x_train, y_train,
-#                c(25:55), "Rsquared", maximize=TRUE, rfeControl = control)
-# # summarize the results
-# print(results)
-
-
-
-
-# print(head(x_test))
-# print(head(y_test))
 
 # Regression----
+# All features
 # XGBoost----
-# folds = createFolds(y_train, k = 5)
+
 # cat("All features:")
 # xgb_train = xgb.DMatrix(data = x_train, label = y_train)
 # xgb_test = xgb.DMatrix(data = x_test, label = y_test)
@@ -154,57 +144,79 @@ x_test_top = x_test[, top5attrs]
 # end_time = Sys.time()
 # print(end_time-start_time)
 # y_pred = predict(regressor, xgb_test)
-# standard_error = RMSE(y_pred = y_pred, y_true = y_test)
-# lower_interval <- y_pred - 1.96 * standard_error
-# upper_interval <- y_pred + 1.96 * standard_error
-# predictions = data.frame(cbind(y_pred, lower_interval, upper_interval))
-# print(head(predictions))
-# 
+
 # print(MAE(y_pred = y_pred, y_true = y_test))
 # print(R2(pred = y_pred, obs = y_test))
 # print(RMSE(y_pred = y_pred, y_true = y_test))
+
+#Plotting XGBoost performance----
+# # Get RMSE for each boosting round
+# evals <- regressor$evaluation_log
 # 
-# cat("\nTop 5 features:")
-# xgb_train = xgb.DMatrix(data = x_train_top, label = y_train)
-# xgb_test = xgb.DMatrix(data = x_test_top, label = y_test)
-# watchlist = list(train=xgb_train, test=xgb_test)
-# start_time = Sys.time()
-# regressor = xgb.train(data = xgb_train, nrounds = 200, max.depth = 5, watchlist = watchlist
-#                       , eta = 0.285, lambda = 1.01)
+# # Extract RMSE values
+# train_rmse <- evals$train_rmse
+# test_rmse <- evals$test_rmse
 # 
-# end_time = Sys.time()
-# print(end_time-start_time)
-# y_pred_top = predict(regressor, xgb_test)
-# standard_error = RMSE(y_pred = y_pred, y_true = y_test)
-# lower_interval <- y_pred_top - 1.96 * standard_error
-# upper_interval <- y_pred_top + 1.96 * standard_error
-# predictions = data.frame(cbind(y_pred_top, lower_interval, upper_interval))
-# print(head(predictions))
+# # Create a data frame for plotting
+# eval_df <- data.frame(
+#   Round = 1:length(train_rmse),
+#   Train_RMSE = train_rmse,
+#   Test_RMSE = test_rmse
+# )
 # 
-# print(MAE(y_pred = y_pred_top, y_true = y_test))
-# print(R2(pred = y_pred_top, obs = y_test))
-# print(RMSE(y_pred = y_pred_top, y_true = y_test))
-#Anova(regressor)
-# while(max(Anova(regressor)$'Pr(>F)') > 0.05) {
-#   remove <- names(which.max(Anova(regressor)$'Pr(>F)'))
-#   regressor <- update(regressor, . ~ . - remove)
-# }
+# # Plot RMSE over training rounds
+# plot <- ggplot(data = eval_df, aes(x = Round)) +
+#   geom_line(aes(y = Train_RMSE, color = "Train")) +
+#   geom_line(aes(y = Test_RMSE, color = "Test")) +
+#   scale_color_manual(values = c("Train" = "blue", "Test" = "red")) +
+#   labs(
+#     x = "Training Round",
+#     y = "RMSE",
+#     title = "XGBoost Training Progress with RMSE Metric"
+#   ) +
+#   theme_minimal()
+num_features <- c(1:20)  # Replace with your actual data
 
+# Plot R2
+p = plot(num_features, r2, type = "b", pch = 19, col = "blue", xlab = "Number of Features", ylab = "R2")
+# Add connecting lines between points
+lines(num_features, rmse, col = "blue")
+# Add a grid for better visualization (optional)
+grid()
+print(p)
 
+# Plot RMSE
+p = plot(num_features, rmse, type = "b", pch = 19, col = "orange", xlab = "Number of Features", ylab = "RMSE")
+# Add connecting lines between points
+lines(num_features, rmse, col = "orange")
+# Add a grid for better visualization (optional)
+grid()
+print(p)
 
+# Plotting MAE vs number of features
+num_features <- c(1:20)
+p = plot(num_features, mae, type = "b", pch = 19, col = "forestgreen", xlab = "Number of Features", ylab = "MAE")
+# Add connecting lines between points
+lines(num_features, mae, col = "forestgreen")
+# Add a grid for better visualization (optional)
+grid()
+print(p)
 
-# Bayesian NN----
-# Define a Bayesian regression model with uncertainty
-# model <- brm(critical_temp ~ ., data = train, family = gaussian())
-# Generate predictions with uncertainty
-# predictions <- predict(model, newdata = test, nsamples = 1000)
-# Extract mean and credible intervals
-# mean_predictions <- apply(predictions, 2, mean)
-# credible_intervals <- apply(predictions, 2, quantile, c(0.025, 0.975))
+# Plot training time
+p = plot(num_features, training_time, type = "b", pch = 19, col = "green", xlab = "Number of Features", ylab = "Training Time")
+# Add connecting lines between points
+lines(num_features, training_time, col = "green")
+# Add a grid for better visualization (optional)
+grid()
+print(p)
 
-
-
-
+# Plot prediction time
+p = plot(num_features, pred_time, type = "b", pch = 19, col = "cyan", xlab = "Number of Features", ylab = "Prediction Time")
+# Add connecting lines between points
+lines(num_features, pred_time, col = "cyan")
+# Add a grid for better visualization (optional)
+grid()
+print(p)
 
 # ANN----
 critical_temp = train$critical_temp
@@ -214,25 +226,90 @@ test_top = cbind(x_test_top, critical_temp)
 library(h2o)
 h2o.init(nthreads = -1)
 # All features----
-# model = h2o.deeplearning(standardize = FALSE,
-#                         y = 'critical_temp',
-#                          training_frame = as.h2o(train),
-#                         validation_frame = as.h2o(test),
-#                          activation = 'RectifierWithDropout',
-#                          hidden = c(100,100, 75),
-#                          epochs = 100,
-#                         loss = "Absolute",
-#                         verbose = TRUE,
-#                          train_samples_per_iteration = -2)
-# 
-# y_pred = h2o.predict(model, as.h2o(x_test))
-# y_pred = as.vector(as.numeric(y_pred))
-# print(MAE(y_pred = y_pred, y_true = y_test))
-# print(R2(pred = y_pred, obs = y_test))
-# print(RMSE(y_pred = y_pred, y_true = y_test))
+model = h2o.deeplearning(standardize = FALSE,
+                        y = 'critical_temp',
+                         training_frame = as.h2o(train),
+                        validation_frame = as.h2o(test),
+                         activation = 'RectifierWithDropout',
+                         hidden = c(100,100, 75),
+                         epochs = 100,
+                        loss = "Absolute",
+                        verbose = TRUE,
+                         train_samples_per_iteration = -2)
+
+y_pred = h2o.predict(model, as.h2o(x_test))
+y_pred = as.vector(as.numeric(y_pred))
+print(MAE(y_pred = y_pred, y_true = y_test))
+print(R2(pred = y_pred, obs = y_test))
+print(RMSE(y_pred = y_pred, y_true = y_test))
 
 
-# Top 5 features----
+# Gradient Boost----
+gbm_model <- gbm(critical_temp ~ ., data = train, distribution = "gaussian", n.trees = 100, interaction.depth = 2, shrinkage = 0.1)
+
+predictions <- predict(gbm_model, newdata = test, n.trees = 100, type = "response")
+current_time <- Sys.time()
+
+print((current_time) - (start_time))
+mse <- mean((predictions - test$critical_temp)^2)  # Corrected
+rmse <- sqrt(mse)
+mae <- mean(abs(predictions - test$critical_temp))
+#print(paste("Mean Squared Error:", mse))
+actual_values <- test$critical_temp
+ss_total <- sum((actual_values - mean(actual_values))^2)
+ss_residual <- sum((actual_values - predictions)^2)
+rsquared <- 1 - (ss_residual / ss_total)
+print(paste("R2:", rsquared))
+print(paste("RMSE:", rmse))
+print(paste("MAE:", mae))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Top 10 features----
+# XGBoost
+cat("\nTop 10 features:")
+set.seed(42)
+top_i_features = common_features[1:10]
+print(top_i_features)
+x_train_top = as.matrix(x_train[, top_i_features])
+x_test_top = as.matrix(x_test[, top_i_features])
+xgb_train = xgb.DMatrix(data = x_train_top, label = y_train)
+xgb_test = xgb.DMatrix(data = x_test_top, label = y_test)
+watchlist = list(train=xgb_train, test=xgb_test)
+start_time = Sys.time()
+regressor = xgb.train(data = xgb_train, nrounds = 200, max.depth = 5, watchlist = watchlist
+                      , eta = 0.285, lambda = 1.01)
+
+end_time = Sys.time()
+print(end_time-start_time)
+y_pred_top = predict(regressor, xgb_test)
+print(head(predictions))
+
+print(MAE(y_pred = y_pred_top, y_true = y_test))
+print(R2(pred = y_pred_top, obs = y_test))
+print(RMSE(y_pred = y_pred_top, y_true = y_test))
+
+# ANN
+x_train_top = as.data.frame(x_train[, top_i_features])
+colnames(x_train_top) = top_i_features
+x_test_top = as.data.frame(x_test[, top_i_features])
+colnames(x_test_top) = top_i_features
+critical_temp = train$critical_temp
+train_top = cbind(x_train_top, critical_temp)
+critical_temp = test$critical_temp
+test_top = cbind(x_test_top, critical_temp)
 start_time = Sys.time()
 model = h2o.deeplearning(standardize = FALSE,
                          y = 'critical_temp',
@@ -252,7 +329,6 @@ y_pred = as.vector(as.numeric(y_pred))
 print(MAE(y_pred = y_pred, y_true = y_test))
 print(R2(pred = y_pred, obs = y_test))
 print(RMSE(y_pred = y_pred, y_true = y_test))
-
 
 
 
@@ -290,51 +366,8 @@ print(RMSE(y_pred = y_pred, y_true = y_test))
 # print(mean(mae))
 
 
-# Gradient Boost----
-# library(gbm)
-# library(caTools)
-# library(caret)
-# start_time <- Sys.time()
-# df <- read.csv("train.csv")
 
-# # Preprocessing
-# normalize <- function(x) {
-#   if (is.vector(x)) {
-#     min_val <- min(x)
-#     max_val <- max(x)
-#   } else {
-#     min_val <- max_val <- x
-#   } 
-#   if (min_val == max_val) {
-#     return(rep(0, length(x)))  # Handle case where min = max
-#   } 
-#   return((x - min_val) / (max_val - min_val))
-# }
-# df_scaled <- as.data.frame(lapply(df, normalize))
 
-# # Train-test split
-# set.seed(123)
-# split <- sample.split(df_scaled$critical_temp, SplitRatio = 0.7)
-# train <- subset(df_scaled, split == TRUE)
-# test <- subset(df_scaled, split == FALSE)
-
-# gbm_model <- gbm(critical_temp ~ ., data = train, distribution = "gaussian", n.trees = 100, interaction.depth = 2, shrinkage = 0.1)
-
-# predictions <- predict(gbm_model, newdata = test, n.trees = 100, type = "response")
-# current_time <- Sys.time()
-
-# print((current_time) - (start_time))
-# mse <- mean((predictions - test$critical_temp)^2)  # Corrected
-# rmse <- sqrt(mse)
-# mae <- mean(abs(predictions - test$critical_temp))
-# #print(paste("Mean Squared Error:", mse))
-# actual_values <- test$critical_temp
-# ss_total <- sum((actual_values - mean(actual_values))^2)
-# ss_residual <- sum((actual_values - predictions)^2)
-# rsquared <- 1 - (ss_residual / ss_total)
-# print(paste("R2:", rsquared))
-# print(paste("RMSE:", rmse))
-# print(paste("MAE:", mae))
 
 #PCA----
 library(stats)
