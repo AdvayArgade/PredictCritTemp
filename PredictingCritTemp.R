@@ -338,29 +338,21 @@ print(RMSE(y_pred = y_pred, y_true = y_test))
 
 #PCA----
 library(stats)
-
-
 data <- read.csv("train.csv")
-
-
 column_names <- colnames(data)
-
-
 scaled_data <- scale(data)
-
-
 pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
-
-
 explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
-
 cat("Explained Variance for Principal Components:\n")
 for (i in 1:length(explained_variance)) {
   cat("PC", i, " (", column_names[i], "): ", explained_variance[i], "\n")
 }
-
 cumulative_variance <- cumsum(explained_variance)
 plot(cumulative_variance, type = "b", xlab = "Number of Principal Components", ylab = "Cumulative Explained Variance", main = "Cumulative Explained Variance Plot")
+cumulative_variance <- cumsum(explained_variance)
+desired_variance <- 0.9
+selected_pc <- which(cumulative_variance >= desired_variance)[1
+cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc, "\n")
 
 
 
