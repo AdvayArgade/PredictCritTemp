@@ -133,50 +133,51 @@ y_test <- test$critical_temp
 # All features
 # XGBoost----
 
-# cat("All features:")
-# xgb_train = xgb.DMatrix(data = x_train, label = y_train)
-# xgb_test = xgb.DMatrix(data = x_test, label = y_test)
-# watchlist = list(train=xgb_train, test=xgb_test)
-# start_time = Sys.time()
-# regressor = xgb.train(data = xgb_train, nrounds = 200, max.depth = 5, watchlist = watchlist
-#                       , eta = 0.285, lambda = 1.01)
-# 
-# end_time = Sys.time()
-# print(end_time-start_time)
-# y_pred = predict(regressor, xgb_test)
+cat("All features:")
+xgb_train = xgb.DMatrix(data = x_train, label = y_train)
+xgb_test = xgb.DMatrix(data = x_test, label = y_test)
+watchlist = list(train=xgb_train, test=xgb_test)
+start_time = Sys.time()
+set.seed(42)
+regressor = xgb.train(data = xgb_train, nrounds = 200, max.depth = 5, watchlist = watchlist
+                      , eta = 0.285, lambda = 1.01)
 
-# print(MAE(y_pred = y_pred, y_true = y_test))
-# print(R2(pred = y_pred, obs = y_test))
-# print(RMSE(y_pred = y_pred, y_true = y_test))
+end_time = Sys.time()
+print(end_time-start_time)
+y_pred = predict(regressor, xgb_test)
+
+print(MAE(y_pred = y_pred, y_true = y_test))
+print(R2(pred = y_pred, obs = y_test))
+print(RMSE(y_pred = y_pred, y_true = y_test))
 
 #Plotting XGBoost performance----
-# # Get RMSE for each boosting round
-# evals <- regressor$evaluation_log
-# 
-# # Extract RMSE values
-# train_rmse <- evals$train_rmse
-# test_rmse <- evals$test_rmse
-# 
-# # Create a data frame for plotting
-# eval_df <- data.frame(
-#   Round = 1:length(train_rmse),
-#   Train_RMSE = train_rmse,
-#   Test_RMSE = test_rmse
-# )
-# 
-# # Plot RMSE over training rounds
-# plot <- ggplot(data = eval_df, aes(x = Round)) +
-#   geom_line(aes(y = Train_RMSE, color = "Train")) +
-#   geom_line(aes(y = Test_RMSE, color = "Test")) +
-#   scale_color_manual(values = c("Train" = "blue", "Test" = "red")) +
-#   labs(
-#     x = "Training Round",
-#     y = "RMSE",
-#     title = "XGBoost Training Progress with RMSE Metric"
-#   ) +
-#   theme_minimal()
-num_features <- c(1:20)  # Replace with your actual data
+# Get RMSE for each boosting round
+evals <- regressor$evaluation_log
 
+# Extract RMSE values
+train_rmse <- evals$train_rmse
+test_rmse <- evals$test_rmse
+
+# Create a data frame for plotting
+eval_df <- data.frame(
+  Round = 1:length(train_rmse),
+  Train_RMSE = train_rmse,
+  Test_RMSE = test_rmse
+)
+
+# Plot RMSE over training rounds
+plot <- ggplot(data = eval_df, aes(x = Round)) +
+  geom_line(aes(y = Train_RMSE, color = "Train")) +
+  geom_line(aes(y = Test_RMSE, color = "Test")) +
+  scale_color_manual(values = c("Train" = "blue", "Test" = "red")) +
+  labs(
+    x = "Training Round",
+    y = "RMSE",
+    title = "XGBoost Training Progress with RMSE Metric"
+  ) +
+  theme_minimal()
+
+num_features <- c(1:20)
 # Plot R2
 p = plot(num_features, r2, type = "b", pch = 19, col = "blue", xlab = "Number of Features", ylab = "R2")
 # Add connecting lines between points
@@ -194,7 +195,6 @@ grid()
 print(p)
 
 # Plotting MAE vs number of features
-num_features <- c(1:20)
 p = plot(num_features, mae, type = "b", pch = 19, col = "forestgreen", xlab = "Number of Features", ylab = "MAE")
 # Add connecting lines between points
 lines(num_features, mae, col = "forestgreen")
