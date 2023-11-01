@@ -624,19 +624,48 @@ for(i in length(top_features)){
 
 
 #PCA----
+# Load the necessary library
 library(stats)
+
+# Load your dataset (train.csv)
 data <- read.csv("train.csv")
+
+# Extract column names
 column_names <- colnames(data)
+
+# Standardize the data
 scaled_data <- scale(data)
+
+# Perform PCA
 pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
+# Get the explained variance
 explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+
+# Print the explained variance for each principal component along with column names
 cat("Explained Variance for Principal Components:\n")
 for (i in 1:length(explained_variance)) {
-  cat("PC", i, " (", column_names[i], "): ", explained_variance[i], "\n")
+  cat( " (", column_names[i], "): ", explained_variance[i], "\n")
 }
+
+# You can also plot the cumulative explained variance
 cumulative_variance <- cumsum(explained_variance)
 plot(cumulative_variance, type = "b", xlab = "Number of Principal Components", ylab = "Cumulative Explained Variance", main = "Cumulative Explained Variance Plot")
+
+# Calculate cumulative explained variance
 cumulative_variance <- cumsum(explained_variance)
+
+# Find the first PC where cumulative variance exceeds 0.9
 desired_variance <- 0.9
-selected_pc <- which(cumulative_variance >= desired_variance)[1
-                                                              cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc, "\n")
+selected_pc <- which(cumulative_variance >= desired_variance)[1]
+
+# Print the result
+cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc, "\n")
+
+
+# Print column names mapped to the loadings (weightage) of their principal components
+# cat("\nLoadings (Weightage) of Principal Components for Each Column:\n")
+# for (i in 1:length(column_names)) {
+# cat("Column: ", column_names[i], "\n")
+# cat("Loadings (Weightage): ", pca_result$rotation[i,], "\n")
+# }
