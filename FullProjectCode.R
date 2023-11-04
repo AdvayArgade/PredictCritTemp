@@ -283,7 +283,7 @@ print(paste("MAE:", mae))
 set.seed(42)
 
 # Build the random forest model
-# T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+# T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train,ntree=1000,mtry=15)})
 # cat("\n\nTraining Time:", T1)
 RFM <- readRDS('RFAllfeatures.rds')
 
@@ -452,7 +452,7 @@ for(i in 1:length(top_features)){
   # # Build the random forest model
   cat('\n\n---------------Random Forest----------------')
   start_time = Sys.time()
-  RFM <- randomForest(critical_temp ~ ., data = train)
+  RFM <- randomForest(critical_temp ~ ., data = train,ntree=500,mtry=10)
   end_time = Sys.time()
   cat("Training Time:", end_time - start_time)
   
