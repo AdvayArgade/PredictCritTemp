@@ -318,7 +318,7 @@ print(paste("MAE:", mae))
 set.seed(42)
                            
 # Build the random forest model
-T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train,ntree=1000,mtry=15)})
 cat("\n\nTraining Time:", T1)
 
 # Print the model summary
@@ -476,7 +476,7 @@ train <- data_filtered[index == 1, ]
 test <- data_filtered[index == 2, ]
 
 # Build the random forest model
-T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
+T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train,ntree=500,mtry=10)})
 cat("\n\nTraining Time:", T1)
 
 # Print the model summary
