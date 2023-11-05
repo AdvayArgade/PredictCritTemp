@@ -257,6 +257,7 @@ cat("\nR2: ",R2(pred = y_pred, obs = y_test))
 cat("\nRMSE: ", RMSE(y_pred = y_pred, y_true = y_test))
 cat("\nMAE: ",MAE(y_pred = y_pred, y_true = y_test))
 
+
 # Gradient Boost----
 # Changing these variables into data frames instead of matrices which were used by XGBoost
 cat("\n\n-------------------Gradient Boost----------------------")
@@ -385,7 +386,7 @@ cat("\nTime taken: ", elapsed_time, " seconds\n")
 
 
 
-
+# On top 10 features----
 RFE_features = readRDS('rfeResult.rds')
 InfoGain_features = readRDS('InfoGainResult.rds')
 # Get the optimal feature subset
@@ -425,16 +426,16 @@ for(i in 1:length(top_features)){
   cat('\n\n---------------XGBoost----------------')
   start_time = Sys.time()
   regressor = xgb.train(data = xgb_train, nrounds = 200, max.depth = 5, watchlist = watchlist
-                        , eta = 0.285, lambda = 1.01)
+                        , eta = 0.285, lambda = 1.01, verbose = FALSE)
 
   end_time = Sys.time()
-  print(end_time-start_time)
+  cat("\nTraining time: ", end_time-start_time)
   y_pred_top = predict(regressor, xgb_test)
 
 
-  print(MAE(y_pred = y_pred_top, y_true = y_test))
-  print(R2(pred = y_pred_top, obs = y_test))
-  print(RMSE(y_pred = y_pred_top, y_true = y_test))
+  cat("\nR2: ",R2(pred = y_pred_top, obs = y_test))
+  cat("\nMAE: ",MAE(y_pred = y_pred_top, y_true = y_test))
+  cat("\nRMSE: ", RMSE(y_pred = y_pred_top, y_true = y_test))
   
   Sys.sleep(3)
   # ANN
@@ -484,17 +485,39 @@ for(i in 1:length(top_features)){
   y_test = subset(test, select = critical_temp)
   y_test <- test$critical_temp
 
+  cat('\n\n---------------Gradient Boost----------------')
+  start_time = Sys.time()
+  gbm_model <- gbm(critical_temp ~ ., data = train, distribution = "gaussian", n.trees = 100, interaction.depth = 2, shrinkage = 0.1)
+  
+  predictions <- predict(gbm_model, newdata = test, n.trees = 100, type = "response")
+  current_time <- Sys.time()
+  
+  print((current_time) - (start_time))
+  
+  mse <- mean((predictions - test$critical_temp)^2)  # Corrected
+  rmse <- sqrt(mse)
+  mae <- mean(abs(predictions - test$critical_temp))
+  #print(paste("Mean Squared Error:", mse))
+  actual_values <- test$critical_temp
+  ss_total <- sum((actual_values - mean(actual_values))^2)
+  ss_residual <- sum((actual_values - predictions)^2)
+  rsquared <- 1 - (ss_residual / ss_total)
+  print(paste("R2:", rsquared))
+  print(paste("RMSE:", rmse))
+  print(paste("MAE:", mae))
+  
+  
   # # Build the random forest model
   cat('\n\n---------------Random Forest----------------')
   start_time = Sys.time()
   RFM <- randomForest(critical_temp ~ ., data = train)
   end_time = Sys.time()
-  cat("Training Time:", end_time - start_time)
+  cat("\nTraining Time:", end_time - start_time)
 
   start_time = Sys.time()
   Temp_pred <- predict(RFM, newdata = test)
   end_time = Sys.time()
-  cat("Prediction Time:", end_time - start_time)
+  cat("\nPrediction Time:", end_time - start_time)
 
 
   # R-square
@@ -517,12 +540,12 @@ for(i in 1:length(top_features)){
   start_time = Sys.time()
   mars_model <- earth(critical_temp ~ ., data = train)
   end_time = Sys.time()
-  cat("Training Time:", end_time - start_time)
+  cat("\nTraining Time:", end_time - start_time)
 
   start_time = Sys.time()
   predictions <- predict(mars_model, newdata = test)
   end_time = Sys.time()
-  cat("Prediction Time:", end_time - start_time)
+  cat("\nPrediction Time:", end_time - start_time)
 
 
   r_square <- R2(predictions, test$critical_temp)
@@ -548,7 +571,7 @@ for(i in 1:length(top_features)){
 
   # Stop measuring time
   end_time <- Sys.time()
-  cat("Training Time:", end_time - start_time)
+  cat("\nTraining Time:", end_time - start_time)
   
   # Predict on the test set
   y_pred <- predict(svr_model, newdata = x_test)
@@ -562,8 +585,6 @@ for(i in 1:length(top_features)){
   MAE <- MAE(y_pred, y_test)
   cat("\nMAE:", MAE)
 
-  elapsed_time <- end_time - start_time
-  cat("\nTime taken: ", elapsed_time, " seconds\n")
   Sys.sleep(3)
   
 }
@@ -587,7 +608,7 @@ plot(cumulative_variance, type = "b", xlab = "Number of Principal Components", y
 cumulative_variance <- cumsum(explained_variance)
 desired_variance <- 0.9
 selected_pc <- which(cumulative_variance >= desired_variance)
-cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc, "\n")
+cat("The first principal component where cumulative variance exceeds 0.9 is PC", selected_pc[1], "\n")
 
 
 
