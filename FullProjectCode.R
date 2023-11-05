@@ -1,3 +1,4 @@
+setwd("D:/Advay/SY BTech/SY Data Science/superconductivty+data")
 df = read.csv("train.csv")
 
 #Preprocessing----
@@ -40,7 +41,12 @@ df = cbind(as.data.frame(lapply(df, normalize)))
 # top_attrs = cut_attrs(attrs = gains, k = 0.99)
 # df = subset(df, select = top_attrs)
 # df = cbind(df, critical_temp)
-
+RFE_features = readRDS('rfeResult.rds')
+InfoGain_features = readRDS('InfoGainResult.rds')
+cat("\nRFE features:", RFE_features$optVariables[1:10], sep = '\n')
+Sys.sleep(3)
+cat("\nInformation gain features: ", InfoGain_features[1:10], sep = '\n')
+Sys.sleep(3)
 
 #fischer score----
 
@@ -61,9 +67,9 @@ sorted_features <- feature_scores[order(-feature_scores$Fisher_Score), ]
 k <- 10
 FS_features <- sorted_features$Feature[1:k]
 # Print the selected features and their Fisher Scores
-print(sorted_features)
-cat("\nSelected Features:\n", FS_features, sep = "\n")
-
+#print(sorted_features)
+cat("\nFischer Score Features:\n", FS_features, sep = "\n")
+Sys.sleep(3)
 
 
 #lASSO----
@@ -96,8 +102,8 @@ important_features <- which(abs_coefficients > 0)
 sorted_important_features <- important_features[order(-abs_coefficients[important_features])]
 
 LASSO_features <- rownames(coefficients)[sorted_important_features[1:10]]
-
-
+cat("\n LASSO features:",LASSO_features, sep = '\n')
+Sys.sleep(3)
 # RFE
 # y_train = train$critical_temp
 # 
@@ -156,6 +162,8 @@ for (i in 1:nrow(highly_correlated_pairs)) {
 # Create a new data frame with the excluded columns
 df_filtered <- df[, !names(df) %in% columns_to_exclude]
 CM_features = colnames(df_filtered)
+cat("\nCorrelation Matrix features: ", CM_features, sep = '\n')
+Sys.sleep(3)
 
 
 # Train test split----
@@ -235,7 +243,7 @@ model = h2o.deeplearning(standardize = FALSE,
                          y = 'critical_temp',
                          training_frame = as.h2o(train),
                          validation_frame = as.h2o(test),
-                         activation = 'RectifierWithDropout',
+                         activation = 'Rectifier',
                          hidden = c(100,100, 75),
                          epochs = 100,
                          loss = "Absolute",
@@ -251,13 +259,14 @@ cat("\nMAE: ",MAE(y_pred = y_pred, y_true = y_test))
 
 # Gradient Boost----
 # Changing these variables into data frames instead of matrices which were used by XGBoost
+cat("\n\n-------------------Gradient Boost----------------------")
 train = subset(df, split==TRUE)
 test = subset(df, split==FALSE)
 x_train = as.data.frame(subset(train, select = -critical_temp))
 x_test = as.data.frame(subset(test, select = -critical_temp))
 y_train = as.data.frame(subset(train, select = critical_temp))
 y_test = subset(test, select = critical_temp)
-
+start_time = Sys.time()
 gbm_model <- gbm(critical_temp ~ ., data = train, distribution = "gaussian", n.trees = 100, interaction.depth = 2, shrinkage = 0.1)
 
 predictions <- predict(gbm_model, newdata = test, n.trees = 100, type = "response")
@@ -283,10 +292,10 @@ print(paste("MAE:", mae))
 set.seed(42)
 
 # Build the random forest model
-# T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train,ntree=1000,mtry=15)})
+# T1 <- system.time({RFM <- randomForest(critical_temp ~ ., data = train)})
 # cat("\n\nTraining Time:", T1)
 RFM <- readRDS('RFAllfeatures.rds')
-
+cat("\n\n-------------------Random Forest----------------------")
 # Model Performance 
 start_time = Sys.time()
 Temp_pred <- predict(RFM, test)
@@ -306,6 +315,7 @@ cat("\nMAE:", mae)
 #MARS whole dataset----
 
 # Build a MARS model using the training data
+cat("\n\n-------------------MARS----------------------")
 start_time = Sys.time()
 mars_model <- earth(critical_temp ~ ., data = train)
 end_time = Sys.time()
@@ -326,7 +336,27 @@ cat("\nRoot Mean Squared Error (RMSE):", RMSE)
 MAE <- MAE(predictions, test$critical_temp)
 cat("\nMAE:", MAE)
 
+# Gradient Boost----
+cat('\n\n----------------Gradient Boost----------------')
+start_time = Sys.time()
+gbm_model <- gbm(critical_temp ~ ., data = train, distribution = "gaussian", n.trees = 100, interaction.depth = 2, shrinkage = 0.1)
 
+predictions <- predict(gbm_model, newdata = test, n.trees = 100, type = "response")
+current_time <- Sys.time()
+
+print((current_time) - (start_time))
+
+mse <- mean((predictions - test$critical_temp)^2)  # Corrected
+rmse <- sqrt(mse)
+mae <- mean(abs(predictions - test$critical_temp))
+#print(paste("Mean Squared Error:", mse))
+actual_values <- test$critical_temp
+ss_total <- sum((actual_values - mean(actual_values))^2)
+ss_residual <- sum((actual_values - predictions)^2)
+rsquared <- 1 - (ss_residual / ss_total)
+print(paste("R2:", rsquared))
+print(paste("RMSE:", rmse))
+print(paste("MAE:", mae))
 
 
 # SVR----
@@ -340,6 +370,7 @@ set.seed(42)
 # end_time <- Sys.time()
 # saveRDS(svr_model, file = 'SVRAllFeatures.rds')
 
+cat("\n\n-------------------Support Vector Regression----------------------")
 svr_model = readRDS('SVRAllFeatures.rds')
 # Predict on the test set
 y_pred <- predict(svr_model, newdata = x_test)
@@ -359,11 +390,15 @@ RFE_features = readRDS('rfeResult.rds')
 InfoGain_features = readRDS('InfoGainResult.rds')
 # Get the optimal feature subset
 common_features = intersect(RFE_features$optVariables[1:50], InfoGain_features[1:50])
-
+LxCM = readRDS('LASSOxCM.rds')
 top_features = list(RFE_features$optVariables[1:10], InfoGain_features[1:10], FS_features[1:10], LASSO_features[1:10],
-                    CM_features[1:10], common_features[1:10])
+                    CM_features[1:10], common_features[1:10], LxCM)
 algorithms = list('RFE', 'Information Gain', 'Fischer Score', 'LASSO', 
-                  'Correlation Matrix', 'RFE intersection Information Gain')
+                  'Correlation Matrix', 'RFE intersection Information Gain', 'LASSO intersection Correlation Matrix')
+
+
+top_features = list(LxCM)
+algorithms = list('LASSO and CM')
 for(i in 1:length(top_features)){
   algorithm = as.character(algorithms[[i]]) 
   cat("\nTop 10 features of ",algorithm, ":")
@@ -381,7 +416,7 @@ for(i in 1:length(top_features)){
   y_train = as.matrix(subset(train, select = critical_temp))
   y_test = subset(test, select = critical_temp)
   y_test <- test$critical_temp
-  
+  # 
   x_train_top = as.matrix(x_train[, top_10_features])
   x_test_top = as.matrix(x_test[, top_10_features])
   xgb_train = xgb.DMatrix(data = x_train_top, label = y_train)
@@ -391,12 +426,12 @@ for(i in 1:length(top_features)){
   start_time = Sys.time()
   regressor = xgb.train(data = xgb_train, nrounds = 200, max.depth = 5, watchlist = watchlist
                         , eta = 0.285, lambda = 1.01)
-  
+
   end_time = Sys.time()
   print(end_time-start_time)
   y_pred_top = predict(regressor, xgb_test)
-  
-  
+
+
   print(MAE(y_pred = y_pred_top, y_true = y_test))
   print(R2(pred = y_pred_top, obs = y_test))
   print(RMSE(y_pred = y_pred_top, y_true = y_test))
@@ -417,7 +452,7 @@ for(i in 1:length(top_features)){
                            y = 'critical_temp',
                            training_frame = as.h2o(train_top),
                            validation_frame = as.h2o(test_top),
-                           activation = 'RectifierWithDropout',
+                           activation = 'Rectifier',
                            hidden = c(100,100, 75),
                            epochs = 100,
                            loss = "Absolute",
@@ -429,7 +464,7 @@ for(i in 1:length(top_features)){
   y_pred = h2o.predict(model, as.h2o(x_test_top))
   y_pred = as.vector(as.numeric(y_pred))
   cat("\nMAE: ",MAE(y_pred = y_pred, y_true = y_test))
-  cat("\nR2: ",R2(pred = y_pred, obs = y_test))
+  cat("\nR2: ",R2(y_pred, y_test))
   cat("\nRMSE: ",RMSE(y_pred = y_pred, y_true = y_test))
   
   Sys.sleep(3)
@@ -437,10 +472,10 @@ for(i in 1:length(top_features)){
   
   # Filter the dataset to include only common features
   data_filtered <- df[, c("critical_temp", top_10_features)]
-
-  # Set the seed for reproducibility
+  # 
+  # # Set the seed for reproducibility
   set.seed(42)
-
+  # 
   train = subset(data_filtered, split==TRUE)
   test = subset(data_filtered, split==FALSE)
   x_train = (subset(train, select = -critical_temp))
@@ -448,19 +483,19 @@ for(i in 1:length(top_features)){
   y_train = (subset(train, select = critical_temp))
   y_test = subset(test, select = critical_temp)
   y_test <- test$critical_temp
-  
+
   # # Build the random forest model
   cat('\n\n---------------Random Forest----------------')
   start_time = Sys.time()
-  RFM <- randomForest(critical_temp ~ ., data = train,ntree=500,mtry=10)
+  RFM <- randomForest(critical_temp ~ ., data = train)
   end_time = Sys.time()
   cat("Training Time:", end_time - start_time)
-  
+
   start_time = Sys.time()
-  predictions <- predict(RFM, newdata = test)
+  Temp_pred <- predict(RFM, newdata = test)
   end_time = Sys.time()
   cat("Prediction Time:", end_time - start_time)
-  
+
 
   # R-square
   r_squared <- R2(Temp_pred, test$critical_temp)
@@ -473,64 +508,60 @@ for(i in 1:length(top_features)){
   # MAE
   mae <- MAE(Temp_pred, test$critical_temp)
   cat("\nMAE:", mae)
-  
+
   Sys.sleep(3)
   #MARS on Features selected----
-  
+
   # Build a MARS model using the training data
   cat('\n\n---------------MARS----------------')
   start_time = Sys.time()
   mars_model <- earth(critical_temp ~ ., data = train)
   end_time = Sys.time()
   cat("Training Time:", end_time - start_time)
-  
+
   start_time = Sys.time()
   predictions <- predict(mars_model, newdata = test)
   end_time = Sys.time()
   cat("Prediction Time:", end_time - start_time)
-  
-  
+
+
   r_square <- R2(predictions, test$critical_temp)
   cat("\nR2:", r_square)
-  
+
   RMSE <- RMSE(predictions, test$critical_temp)
   cat("\nRoot Mean Squared Error (RMSE):", RMSE)
-  
+
   MAE <- MAE(predictions, test$critical_temp)
   cat("\nMAE:", MAE)
-  
+
   Sys.sleep(3)
-  
-  
-  
+
+
+
   # Support Vector Regression Top 10 features----
   cat('\n\n---------------SVR----------------')
-  
-  # Start measuring time
+
   start_time <- Sys.time()
-  
+
   # Training SVR model
   svr_model <- svm(x = x_train, y = y_train, kernel = "radial", cost = 1)
-  
+
   # Stop measuring time
   end_time <- Sys.time()
+  cat("Training Time:", end_time - start_time)
   
   # Predict on the test set
   y_pred <- predict(svr_model, newdata = x_test)
-  
-  # Calculate R-squared (R2) using Metrics package
+
   r_square <- R2(y_pred, y_test)
   cat("\nR2:", r_square)
-  
-  # Calculate Root Mean Squared Error (RMSE) using Metrics package
+
   RMSE <- RMSE(y_pred, y_test)
   cat("\nRoot Mean Squared Error (RMSE):", RMSE)
-  
-  # Calculate Mean Absolute Error (MAE) using Metrics package
+
   MAE <- MAE(y_pred, y_test)
   cat("\nMAE:", MAE)
-  
-  # Calculate and print the time taken
+
   elapsed_time <- end_time - start_time
   cat("\nTime taken: ", elapsed_time, " seconds\n")
   Sys.sleep(3)
@@ -595,8 +626,3 @@ cat("The first principal component where cumulative variance exceeds 0.9 is PC",
 # print(mean(rmse))
 # print(mean(r2))
 # print(mean(mae))
-
-
-
-
-
